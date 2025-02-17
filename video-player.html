@@ -22,7 +22,12 @@
             margin-bottom: 20px;
             border-radius: 8px;
         }
-        .download-btn {
+        .button-container {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .btn {
             display: inline-block;
             padding: 12px 24px;
             background-color: #007AFF;
@@ -31,9 +36,23 @@
             border-radius: 8px;
             font-weight: 500;
             transition: background-color 0.2s;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
         }
-        .download-btn:hover {
+        .btn:hover {
             background-color: #0056b3;
+        }
+        .btn-secondary {
+            background-color: #555;
+        }
+        .btn-secondary:hover {
+            background-color: #666;
+        }
+        #downloadProgress {
+            display: none;
+            margin-top: 10px;
+            color: #fff;
         }
     </style>
 </head>
@@ -42,22 +61,90 @@
         <video id="videoPlayer" controls autoplay playsinline>
             Your browser does not support the video tag.
         </video>
-        <a id="downloadBtn" class="download-btn" href="#" download>Download Video</a>
+        <div class="button-container">
+            <button id="downloadBtn" class="btn">Download Video</button>
+            <a id="openInSafari" class="btn btn-secondary" href="#" target="_blank">Open in Safari</a>
+        </div>
+        <div id="downloadProgress"></div>
     </div>
 
     <script>
-        // Get URL parameters
         const urlParams = new URLSearchParams(window.location.search);
         const videoUrl = urlParams.get('url');
         
         if (videoUrl) {
-            // Set video source
+            const decodedUrl = decodeURIComponent(videoUrl);
             const videoPlayer = document.getElementById('videoPlayer');
-            videoPlayer.src = decodeURIComponent(videoUrl);
-            
-            // Set download link
             const downloadBtn = document.getElementById('downloadBtn');
-            downloadBtn.href = decodeURIComponent(videoUrl);
+            const openInSafari = document.getElementById('openInSafari');
+            const progressDiv = document.getElementById('downloadProgress');
+            
+            // 设置视频源
+            videoPlayer.src = decodedUrl;
+            
+            // 设置在Safari中打开的链接
+            openInSafari.href = decodedUrl;
+            
+            // 处理下载
+            downloadBtn.addEventListener('click', async () => {
+                try {
+                    downloadBtn.disabled = true;
+                    downloadBtn.textContent = 'Downloading...';
+                    progressDiv.style.display = 'block';
+                    
+                    const response = await fetch(decodedUrl);
+                    const contentLength = response.headers.get('content-length');
+                    const total = parseInt(contentLength, 10);
+                    
+                    const reader = response.body.getReader();
+                    const chunks = [];
+                    let received = 0;
+                    
+                    while(true) {
+                        const {done, value} = await reader.read();
+                        
+                        if (done) break;
+                        
+                        chunks.push(value);
+                        received += value.length;
+                        
+                        if (total) {
+                            const progress = ((received / total) * 100).toFixed(2);
+                            progressDiv.textContent = `Downloaded: ${progress}%`;
+                        }
+                    }
+                    
+                    const blob = new Blob(chunks);
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'video' + (videoUrl.endsWith('.mp4') ? '.mp4' : '');
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                    
+                    downloadBtn.textContent = 'Download Complete!';
+                    progressDiv.textContent = 'Download Complete!';
+                    
+                    setTimeout(() => {
+                        downloadBtn.disabled = false;
+                        downloadBtn.textContent = 'Download Video';
+                        progressDiv.style.display = 'none';
+                    }, 3000);
+                    
+                } catch (err) {
+                    console.error('Download failed:', err);
+                    downloadBtn.textContent = 'Download Failed';
+                    progressDiv.textContent = 'Download Failed. Please try opening in Safari.';
+                    
+                    setTimeout(() => {
+                        downloadBtn.disabled = false;
+                        downloadBtn.textContent = 'Download Video';
+                        progressDiv.style.display = 'none';
+                    }, 3000);
+                }
+            });
         }
     </script>
 </body>
